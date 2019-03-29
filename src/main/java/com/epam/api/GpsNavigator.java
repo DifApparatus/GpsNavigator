@@ -1,6 +1,6 @@
 package main.java.com.epam.api;
 
-public interface GpsNavigator {
+public interface GpsNavigator<T> {
 
     /**
      * This method needs to be called before using the {@link #findPath(String, String)}.
@@ -26,5 +26,5 @@ public interface GpsNavigator {
      * @param pointB end point.
      * @return object, which describes the found path.
      */
-    Path findPath(String pointA, String pointB);
+     Path findPath(T pointA, T pointB);
 }

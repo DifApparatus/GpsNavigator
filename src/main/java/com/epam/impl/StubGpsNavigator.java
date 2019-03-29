@@ -1,16 +1,17 @@
 package main.java.com.epam.impl;
 
 import java.io.*;
-import java.sql.SQLOutput;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import main.java.com.epam.api.GpsNavigator;
 import main.java.com.epam.api.Path;
-
-public class StubGpsNavigator implements GpsNavigator {
+//T - node
+public class StubGpsNavigator<T, V extends RoadDirection<T>> implements GpsNavigator<T> {
 
     private static final int PARTS_OF_ONE_ROAD = 4;
 
@@ -18,8 +19,14 @@ public class StubGpsNavigator implements GpsNavigator {
      * Imaging directed graph of roads as HashMap,
      * where key is a title of node and value is an ArrayList of available directions.
      */
-    private HashMap<String, List<RoadDirection>> roadMap = new HashMap<>();
-
+    private HashMap<T, List<V>> roadMap = new HashMap<>();
+   CostCounterable<V> costCounter;
+    public StubGpsNavigator(CostCounterable<V> counter) {
+    	costCounter = counter;
+    }
+    /**
+     * Well, this one probably should be generalized
+     */
     @Override
     public void readData(String filePath) {
         File inputFile = new File(filePath);
@@ -39,18 +46,18 @@ public class StubGpsNavigator implements GpsNavigator {
                 int cost = Integer.parseInt(partsOfOneRoad[3]);
 
                 // adding start point and forward direction
-                RoadDirection direction = new RoadDirection(endPoint, length, cost);
+                RoadDirection<T> direction = new RoadDirection(endPoint, length, cost);
                 if (roadMap.containsKey(startPoint)) {
-                    roadMap.get(startPoint).add(direction);
+                    roadMap.get(startPoint).add( (V) direction);
                 } else {
-                    List<RoadDirection> node = new ArrayList<>();
+                    List<RoadDirection<T>> node = new ArrayList<>();
                     node.add(direction);
-                    roadMap.put(startPoint, node);
+                    roadMap.put((T) startPoint, (List<V>) node);
                 }
                 // adding end point
                 if (!roadMap.containsKey(endPoint)) {
-                    ArrayList<RoadDirection> node = new ArrayList<>();
-                    roadMap.put(endPoint, node);
+                    List<RoadDirection<T>> node = new ArrayList<>();
+                    roadMap.put((T) endPoint, (List<V>) node);
                 }
             }
         } catch (FileNotFoundException e) {
@@ -75,38 +82,38 @@ public class StubGpsNavigator implements GpsNavigator {
      * Implementation of findPath(...). Uses Dijkstra's algorithm.
      */
     @Override
-    public Path findPath(String pointA, String pointB) {
+    public Path findPath(T pointA, T pointB) {
         if (!roadMap.containsKey(pointA) || !roadMap.containsKey(pointB)) {
             throw new IllegalArgumentException("No such node.");
         }
-
-        HashMap<String, RoadPath> nodes = new HashMap<>();
+        
+        HashMap<T, RoadPath<T>>nodes = new HashMap<>();
         initPath(nodes, pointA);
 
-        String activeNode = pointA;
+        T activeNode = pointA;
         while (!nodes.get(pointB).isOptimal) {
-            String prevActiveNode = activeNode;
-            List<RoadDirection> node = roadMap.get(activeNode);
+            T prevActiveNode = activeNode;
+            List<V> node =  roadMap.get(activeNode);
 
-            for (RoadDirection direction : node) {
-                RoadPath roadPathOfDestiny = nodes.get(direction.destiny);
-                RoadPath roadPathOfActiveNode = nodes.get(activeNode);
+            for (V direction : node) {
+                RoadPath<T> roadPathOfDestiny = nodes.get(direction.destiny);
+                RoadPath<T> roadPathOfActiveNode = nodes.get(activeNode);
                 if (roadPathOfDestiny.cost >= 0) {
-                    if (roadPathOfDestiny.cost > roadPathOfActiveNode.cost + direction.cost) {
-                        roadPathOfDestiny.cost = roadPathOfActiveNode.cost + direction.cost;
+                    if (roadPathOfDestiny.cost > roadPathOfActiveNode.cost + costCounter.getCost(direction)) {
+                        roadPathOfDestiny.cost = roadPathOfActiveNode.cost + costCounter.getCost(direction);
                         roadPathOfDestiny.path = new ArrayList<>(nodes.get(prevActiveNode).path);
-                        roadPathOfDestiny.path.add(direction.destiny);
+                        roadPathOfDestiny.path.add((T) direction.destiny);
                     }
                 } else {
-                    roadPathOfDestiny.cost = nodes.get(activeNode).cost + direction.cost;
+                    roadPathOfDestiny.cost = nodes.get(activeNode).cost + costCounter.getCost(direction);
                     roadPathOfDestiny.path = new ArrayList<>(nodes.get(activeNode).path);
-                    roadPathOfDestiny.path.add(direction.destiny);
+                    roadPathOfDestiny.path.add((T) direction.destiny);
                 }
             }
 
             int minValue = -1;
-            for (Map.Entry<String, RoadPath> entry : nodes.entrySet()) {
-                RoadPath v = entry.getValue();
+            for (Entry<T, RoadPath<T>> entry : nodes.entrySet()) {
+                RoadPath<T> v = entry.getValue();
                 if (!v.isOptimal && v.cost >= 0) {
                     if (minValue < 0 || minValue > v.cost) {
                         minValue = v.cost;
@@ -119,20 +126,20 @@ public class StubGpsNavigator implements GpsNavigator {
             }
             nodes.get(activeNode).isOptimal = true;
         }
-
-        return new Path(nodes.get(activeNode).path, nodes.get(activeNode).cost);
+        //This return should be changed
+        return new Path((List<String>) nodes.get(activeNode).path, nodes.get(activeNode).cost);
     }
 
-    private void initPath(HashMap<String, RoadPath> nodes, String startPoint) {
+    private void initPath(HashMap<T, RoadPath<T>> nodes, T startPoint) {
         roadMap.forEach((k, v) -> {
             if (k.equals(startPoint)) {
-                List<String> path = new ArrayList<>();
+                List<T> path = new ArrayList<>();
                 path.add(startPoint);
-                RoadPath roadPath = new RoadPath(path, 0);
+                RoadPath<T> roadPath = new RoadPath<T>(path, 0);
                 roadPath.isOptimal = true;
-                nodes.put(k, roadPath);
+                nodes.put( (T) k, roadPath);
             } else {
-                nodes.put(k, new RoadPath(new ArrayList<>(), -1));
+                nodes.put( (T) k, new RoadPath<T>(new ArrayList<>(), -1));
             }
         });
     }
